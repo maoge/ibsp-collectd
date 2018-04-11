@@ -10,6 +10,63 @@ import (
     "github.com/maoge/ibsp-collectd/utils"
 )
 
+type Broker struct {
+    BrokerID     string
+    BrokerName   string
+    HostName     string
+    ErlCookie    string
+    IP           string
+    Port         string
+    MgrPort      string
+    SyncPort     string
+    OSUser       string
+    OSPwd        string
+    RootPwd      string
+
+    GenProbe    *GeneralDataProbe
+}
+
+type VBroker struct {
+    VBrokerID    string
+    VBrokerName  string
+    MasterID     string
+    BrokerMap    map[string]*Broker
+}
+
+type CacheProxy struct {
+    CacheProxyID   string
+    CacheProxyName string
+    OSUser         string
+    OSPwd          string
+    IP             string
+    Port           string
+    StatPort       string
+    RWSep          string
+
+    GenProbe    *GeneralDataProbe
+}
+
+type CacheNode struct {
+    CacheNodeID    string
+    CacheNodeName  string
+    IP             string
+    Port           string
+    OSUser         string
+    OSPwd          string
+
+    GenProbe    *GeneralDataProbe
+}
+
+type CacheNodeCluster struct {
+    CacheNodeClusterID   string
+    CacheNodeClusterName string
+    MasterID             string
+    MaxMemory            string   // UNIT GB
+    CacheSlot            string
+                         
+    CacheNodeMap  map[string]*CacheNode
+}
+
 type GeneralDataProbe struct {
     ID          string
     Name        string

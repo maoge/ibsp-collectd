@@ -30,13 +30,13 @@ type DBServProbe struct {
 }
 
 type MQServProbe struct {
-    SwitchSrvProbes  []*GeneralDataProbe
-    BrokerSrvProbes  []*GeneralDataProbe
+    VBrokerArr       []*VBroker
+    MQSwitchArr      []*GeneralDataProbe
 }
 
 type CacheServProbe struct {
-    ProxySrvProbes   []*GeneralDataProbe
-    CacheNodeProbes  []*GeneralDataProbe
+    CacheProxyArr       []*CacheProxy
+    CacheNodeClusterArr []*CacheNodeCluster
 }
 
 func (pb *Probe) Init(url, servid string) bool {
@@ -85,29 +85,26 @@ func (pb *Probe) parse(body []byte) bool {
         return false
     }
 
-    topo := resultInfo.RET_INFO[utils.DB_SERV_CONTAINER]
     var topoParse = false
-    for k, _ := range resultInfo.RET_INFO {
-        if k != "DEPLOY_FLAG" {            
-            topoInfo, _ := topo.(map[string]interface{})
-
-            switch k {
-            case utils.DB_SERV_CONTAINER:
-                pb.ServType = utils.SERV_TYPE_DB
-                pb.DBGenProbe = new(DBServProbe)
-                topoParse = pb.parseDB(topoInfo)
-            case utils.MQ_SERV_CONTAINER:
-                pb.ServType = utils.SERV_TYPE_MQ
-                pb.MQGenProbe = new(MQServProbe)
-                topoParse = pb.parseMQ(topoInfo)
-            case utils.CACHE_SERV_CONTAINER:
-                pb.ServType = utils.SERV_TYPE_CACHE
-                pb.CacheGenProbe = new(CacheServProbe)
-                topoParse = pb.parseCache(topoInfo)
-            default:
-                topoParse = false
-            }
-        }
+    servClazz := resultInfo.RET_INFO[utils.SERV_CLAZZ]
+    switch servClazz {
+    case utils.DB_SERV_CONTAINER:
+        topoInfo, _ := resultInfo.RET_INFO[utils.DB_SERV_CONTAINER].(map[string]interface{})
+        pb.ServType = utils.SERV_TYPE_DB
+        pb.DBGenProbe = new(DBServProbe)
+        topoParse = pb.parseDB(topoInfo)
+    case utils.MQ_SERV_CONTAINER:
+        topoInfo, _ := resultInfo.RET_INFO[utils.MQ_SERV_CONTAINER].(map[string]interface{})
+        pb.ServType = utils.SERV_TYPE_MQ
+        pb.MQGenProbe = new(MQServProbe)
+        topoParse = pb.parseMQ(topoInfo)
+    case utils.CACHE_SERV_CONTAINER:
+        topoInfo, _ := resultInfo.RET_INFO[utils.CACHE_SERV_CONTAINER].(map[string]interface{})
+        pb.ServType = utils.SERV_TYPE_CACHE
+        pb.CacheGenProbe = new(CacheServProbe)
+        topoParse = pb.parseCache(topoInfo)
+    default:
+        ;
     }
 
     return topoParse
@@ -243,13 +240,87 @@ func (pb *Probe) parseDB(topo map[string]interface{}) bool {
 }
 
 func (pb *Probe) parseMQ(topo map[string]interface{}) bool {
-    // TODO
-    return false
+    // VBROKER LIST
+    vbrokerContainer := topo["MQ_VBROKER_CONTAINER"]
+    vbrokerContainerMap, _ := vbrokerContainer.(map[string]interface{})
+
+    vbrokerArr, _ := vbrokerContainerMap["MQ_VBROKER"].([]interface{})
+    lenVBroker := len(vbrokerArr)
+    pb.MQGenProbe.VBrokerArr = make([]*VBroker, lenVBroker)
+    cnt := 0
+
+    for i := 0; i < lenVBroker; i++ {
+        m, _ := vbrokerArr[i].(map[string]interface{})
+
+        vbrokerID, _ := m["VBROKER_ID"].(string)
+        vbrokerDeployFlag := pb.DeployFlagMap[vbrokerID]
+        if vbrokerDeployFlag == "" || vbrokerDeployFlag == utils.NOT_DEPLOYED {
+            continue
+        }
+
+        var vbroker *VBroker = new(VBroker)
+        vbroker.VBrokerID = vbrokerID
+        vbroker.VBrokerName, _ = m["VBROKER_NAME"].(string)
+        vbroker.MasterID,    _ = m["MASTER_ID"].(string)
+        vbroker.BrokerMap      = make(map[string]*Broker)
+
+        brokerArr, _ := m["MQ_BROKER"].([]interface{})
+        lenBroker := len(brokerArr)
+
+        for j := 0; j < lenBroker; j++ {
+            n, _ := brokerArr[j].(map[string]interface{})
+
+            brokerID, _ := n["BROKER_ID"].(string)
+            brokerDeployFlag := pb.DeployFlagMap[brokerID]
+            if brokerDeployFlag == "" || brokerDeployFlag == utils.NOT_DEPLOYED {
+                continue
+            }
+
+            var broker * Broker = new(Broker)
+            broker.BrokerID      = brokerID
+            broker.BrokerName, _ = n["BROKER_NAME"].(string)
+            broker.HostName,   _ = n["HOST_NAME"].(string)
+            broker.ErlCookie,  _ = n["ERL_COOKIE"].(string)
+            broker.IP,         _ = n["IP"].(string)
+            broker.Port,       _ = n["PORT"].(string)
+            broker.MgrPort,    _ = n["MGR_PORT"].(string)
+            broker.SyncPort,   _ = n["SYNC_PORT"].(string)
+            broker.OSUser,     _ = n["OS_USER"].(string)
+            broker.OSPwd,      _ = n["OS_PWD"].(string)
+            broker.RootPwd,    _ = n["ROOT_PWD"].(string)
+
+            var genDataProbe *GeneralDataProbe = new(GeneralDataProbe)
+            genDataProbe.ID             = brokerID
+            genDataProbe.Name           = broker.BrokerName
+            genDataProbe.IP             = broker.IP
+            genDataProbe.Port           = broker.Port
+            genDataProbe.User           = broker.OSUser
+            genDataProbe.Passwd         = broker.OSPwd
+            genDataProbe.UniFlag        = "\\-setcookie " + broker.ErlCookie
+            genDataProbe.InstallPath    = "mq_deploy/" + genDataProbe.Port
+
+            broker.GenProbe = genDataProbe
+            vbroker.BrokerMap["brokerID"] = broker
+        }
+
+        pb.MQGenProbe.VBrokerArr[cnt] = vbroker
+        cnt++
+    }
+
+    // MQ_SWITCH_CONTAINER optional
+
+    return true
 }
 
 func (pb *Probe) parseCache(topo map[string]interface{}) bool {
-    // TODO
-    return false
+    cacheProxyContainer := topo["CACHE_PROXY_CONTAINER"]
+    cacheProxyContainerMap, _ := cacheProxyContainer.(map[string]interface{})
+
+    cacheProxyArr := "CACHE_PROXY"
+    vbrokerArr, _ := vbrokerContainerMap["MQ_VBROKER"].([]interface{})
+    lenVBroker := len(vbrokerArr)
+
+    return true
 }
 
 func (pb *Probe) doCollecting() {

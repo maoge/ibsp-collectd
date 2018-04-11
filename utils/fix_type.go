@@ -12,6 +12,8 @@ const NOT_DEPLOYED         = "0"
 
 const SSH_PORT             = "22"
 
+const SERV_CLAZZ           = "SERV_CLAZZ"
+
 const SERV_TYPE_MQ         = "MQ"
 const SERV_TYPE_CACHE      = "CACHE"
 const SERV_TYPE_DB         = "DB"
