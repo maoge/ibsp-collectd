@@ -43,7 +43,7 @@ func (pb *Probe) Init(url, servid string) bool {
     pb.RootUrl = url
     pb.ServID  = servid
 
-    loadServTopoUrl := fmt.Sprintf("%s/%s/%s", url, "configsvr", "loadServiceTopoByInstID")
+	loadServTopoUrl := fmt.Sprintf("http://%s/%s/%s", url, "configsvr", "loadServiceTopoByInstID")
 
     params := fmt.Sprintf("%s=%s", "INST_ID", servid)
     result, httpErr := utils.HttpPost(loadServTopoUrl, params)
